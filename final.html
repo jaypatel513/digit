@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Digit Image Sender</title>
+  <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --primary: #4361ee;
+      --primary-dark: #3a56d4;
+      --success: #4cc9f0;
+      --danger: #f72585;
+      --gray: #6c757d;
+      --light: #f8f9fa;
+      --dark: #212529;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+      background: linear-gradient(135deg, #f5f7fa 0%, #e4e8f0 100%);
+      color: var(--dark);
+    }
+
+    .container {
+      width: 100%;
+      max-width: 800px;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+      padding: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    h1 {
+      font-size: 1.8rem;
+      font-weight: 600;
+      margin-bottom: 1.5rem;
+      color: var(--primary);
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .video-container {
+      position: relative;
+      width: 100%;
+      max-height: 60vh;
+      aspect-ratio: 4 / 3;
+      border-radius: 8px;
+      overflow: hidden;
+      background: var(--dark);
+      margin-bottom: 1.5rem;
+    }
+
+    video {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .controls {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+
+    button {
+      padding: 0.75rem 1.25rem;
+      font-size: 1rem;
+      font-weight: 500;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .btn-primary {
+      background-color: var(--primary);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      background-color: var(--primary-dark);
+      transform: translateY(-2px);
+    }
+
+    .status {
+      padding: 1rem;
+      border-radius: 8px;
+      font-weight: 500;
+      margin-top: 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      word-break: break-word;
+    }
+
+    .status.connecting {
+      background-color: rgba(108, 117, 125, 0.1);
+      color: var(--gray);
+    }
+
+    .status.ready {
+      background-color: rgba(76, 201, 240, 0.1);
+      color: var(--success);
+    }
+
+    .status.error {
+      background-color: rgba(247, 37, 133, 0.1);
+      color: var(--danger);
+    }
+
+    .status.success {
+      background-color: rgba(67, 97, 238, 0.1);
+      color: var(--primary);
+    }
+
+    .operation-switch {
+      position: relative;
+      display: flex;
+      background: var(--light);
+      border-radius: 8px;
+      padding: 4px;
+      user-select: none;
+    }
+
+    .operation-toggle {
+      position: relative;
+      display: flex;
+      width: 120px;
+    }
+
+    .operation-btn {
+      flex: 1;
+      padding: 0.75rem 1.5rem;
+      border: none;
+      background: transparent;
+      color: var(--gray);
+      font-size: 1.2rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: color 0.3s ease;
+      z-index: 1;
+    }
+
+    .operation-btn.active {
+      color: white;
+    }
+
+    .operation-slider {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      width: calc(50% - 4px);
+      height: calc(100% - 8px);
+      background: var(--primary);
+      border-radius: 6px;
+      transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    @media (max-width: 600px) {
+      h1 {
+        font-size: 1.3rem;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .operation-toggle {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>
+      <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="5" width="20" height="14" rx="2"></rect>
+        <line x1="2" y1="10" x2="22" y2="10"></line>
+      </svg>
+      Digit Image Sender
+    </h1>
+
+    <div class="video-container">
+      <video id="video" autoplay playsinline></video>
+    </div>
+
+    <div class="controls">
+      <button class="btn-primary" onclick="sendImage()">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path>
+          <circle cx="12" cy="13" r="4"></circle>
+        </svg>
+        Send Image
+      </button>
+
+      <div class="operation-switch">
+        <div class="operation-toggle">
+          <div class="operation-slider"></div>
+          <button class="operation-btn active" data-value="+" onclick="toggleOperation(this)">+</button>
+          <button class="operation-btn" data-value="×" onclick="toggleOperation(this)">×</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="status" class="status connecting">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+        stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="10"></circle>
+        <line x1="12" y1="8" x2="12" y2="12"></line>
+        <line x1="12" y1="16" x2="12.01" y2="16"></line>
+      </svg>
+      Connecting to MQTT broker...
+    </div>
+  </div>
+
+  <script>
+    const video = document.getElementById('video');
+    const statusElement = document.getElementById('status');
+    const TOPIC = 'digit/image/send';
+    let statusTimeout;
+
+    function setStatus(type, message, autoHide = false) {
+      clearTimeout(statusTimeout);
+      statusElement.className = `status ${type}`;
+      statusElement.innerHTML = document.querySelector(`#status .status.${type}`)?.innerHTML || message;
+      statusElement.querySelector('svg').outerHTML = document.querySelector(`#status .status.${type} svg`)?.outerHTML || '';
+      statusElement.querySelector('svg').after(document.createTextNode(message));
+
+      if (autoHide) {
+        statusTimeout = setTimeout(() => {
+          setStatus('ready', 'Connected to MQTT broker. Ready to send images.');
+        }, 5000);
+      }
+    }
+
+    function toggleOperation(btn) {
+      const buttons = document.querySelectorAll('.operation-btn');
+      const slider = document.querySelector('.operation-slider');
+      const index = Array.from(buttons).indexOf(btn);
+      
+      buttons.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      slider.style.transform = `translateX(${index * 100}%)`;
+    }
+
+    // Start webcam
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+      .then(stream => {
+        video.srcObject = stream;
+        statusElement.className = 'status ready';
+        statusElement.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+            <polyline points="22 4 12 14.01 9 11.01"></polyline>
+          </svg>
+          Webcam ready. Click 'Send Image' to capture and send.
+        `;
+      })
+      .catch(err => {
+        statusElement.className = 'status error';
+        statusElement.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          Error accessing webcam. Please check permissions.
+        `;
+        console.error("Webcam error:", err);
+      });
+
+    // MQTT Client
+    const client = mqtt.connect('wss://broker.hivemq.com:8884/mqtt');
+
+    client.on('connect', () => {
+      statusElement.className = 'status ready';
+      statusElement.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+          <polyline points="22 4 12 14.01 9 11.01"></polyline>
+        </svg>
+        Connected to MQTT broker. Ready to send images.
+      `;
+    });
+
+    client.on('error', (err) => {
+      statusElement.className = 'status error';
+      statusElement.innerHTML = `
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+          stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"></circle>
+          <line x1="12" y1="8" x2="12" y2="12"></line>
+          <line x1="12" y1="16" x2="12.01" y2="16"></line>
+        </svg>
+        MQTT connection error. Please check your network.
+      `;
+      console.error("MQTT error:", err);
+    });
+
+    function sendImage() {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        // Add timestamp overlay
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(10, canvas.height - 30, 180, 20);
+        ctx.fillStyle = 'white';
+        ctx.font = '12px Arial';
+        ctx.fillText(new Date().toLocaleString(), 15, canvas.height - 15);
+
+        const b64data = canvas.toDataURL('image/jpeg', 0.8);
+
+        // Get selected operation
+        const activeBtn = document.querySelector('.operation-btn.active');
+        const operation = activeBtn.dataset.value === '+' ? 0 : 1;
+
+        const payload = JSON.stringify({
+          image: b64data,
+          operation: operation
+        });
+
+        client.publish(TOPIC, payload);
+
+        statusElement.className = 'status success';
+        statusElement.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+          </svg>
+          Image and operation sent successfully
+        `;
+
+        setTimeout(() => {
+          statusElement.className = 'status ready';
+          statusElement.innerHTML = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+              <polyline points="22 4 12 14.01 9 11.01"></polyline>
+            </svg>
+            Connected to MQTT broker. Ready to send images.
+          `;
+        }, 5000);
+
+      } catch (err) {
+        statusElement.className = 'status error';
+        statusElement.innerHTML = `
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="12" y1="8" x2="12" y2="12"></line>
+            <line x1="12" y1="16" x2="12.01" y2="16"></line>
+          </svg>
+          Failed to send image. Please try again.
+        `;
+        console.error("Image send error:", err);
+      }
+    }
+  </script>
+</body>
+</html>
